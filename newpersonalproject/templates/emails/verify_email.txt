@@ -1,0 +1,13 @@
+Welcome to Personal Finance Tracker!
+
+Hi {{ user.name }},
+
+Thank you for signing up. To complete your registration and start tracking your finances, please verify your email address by clicking the link below:
+
+{{ verification_url }}
+
+This verification link will expire in 1 hour for security reasons.
+
+If you didn't create an account with Personal Finance Tracker, you can safely ignore this email.
+
+© {{ now.year }} Personal Finance Tracker. All rights reserved. 

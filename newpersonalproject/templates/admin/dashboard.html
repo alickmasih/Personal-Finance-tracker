@@ -1,0 +1,251 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Admin Navigation -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="btn-group">
+                <a href="{{ url_for('admin_dashboard') }}" class="btn btn-primary active">
+                    <i class="fas fa-chart-line"></i> Dashboard
+                </a>
+                <a href="{{ url_for('admin_users') }}" class="btn btn-primary">
+                    <i class="fas fa-users"></i> Users
+                </a>
+                <a href="{{ url_for('admin_analytics') }}" class="btn btn-primary">
+                    <i class="fas fa-chart-bar"></i> Analytics
+                </a>
+                <a href="{{ url_for('admin_activity_log') }}" class="btn btn-primary">
+                    <i class="fas fa-history"></i> Activity Log
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Stats -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Total Users</h5>
+                    <h2>{{ total_users }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Total Transactions</h5>
+                    <h2>{{ total_transactions }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Active Today</h5>
+                    <h2>{{ analytics_trend[0].active_users if analytics_trend else 0 }}</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <h5 class="card-title">Suspicious Activities</h5>
+                    <h2>{{ suspicious_activities|length }}</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">User Activity Trend</h5>
+                    <canvas id="userActivityChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Popular Categories</h5>
+                    <canvas id="categoriesChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Activity Monitoring -->
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Recent Activities</h5>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>User</th>
+                                    <th>Activity</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for activity in recent_activities %}
+                                <tr>
+                                    <td>{{ activity.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    <td>{{ activity.user.email }}</td>
+                                    <td>{{ activity.activity_type }}</td>
+                                    <td>{{ activity.description }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card border-danger">
+                <div class="card-body">
+                    <h5 class="card-title text-danger">
+                        <i class="fas fa-exclamation-triangle"></i> Suspicious Activities
+                    </h5>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>User</th>
+                                    <th>Activity</th>
+                                    <th>IP Address</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for activity in suspicious_activities %}
+                                <tr>
+                                    <td>{{ activity.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    <td>{{ activity.user.email }}</td>
+                                    <td>{{ activity.activity_type }}</td>
+                                    <td>{{ activity.ip_address }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // User Activity Trend Chart
+    const activityData = {{ analytics_trend|tojson }};
+    new Chart(document.getElementById('userActivityChart'), {
+        type: 'line',
+        data: {
+            labels: activityData.map(d => d.date),
+            datasets: [{
+                label: 'Active Users',
+                data: activityData.map(d => d.active_users),
+                borderColor: '#3498db',
+                fill: false
+            }, {
+                label: 'Total Transactions',
+                data: activityData.map(d => d.total_transactions),
+                borderColor: '#2ecc71',
+                fill: false
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+
+    // Categories Chart
+    const categoryStats = {{ category_stats|tojson }};
+    new Chart(document.getElementById('categoriesChart'), {
+        type: 'bar',
+        data: {
+            labels: categoryStats.map(c => c.category),
+            datasets: [{
+                label: 'Number of Transactions',
+                data: categoryStats.map(c => c.count),
+                backgroundColor: '#3498db'
+            }, {
+                label: 'Total Amount',
+                data: categoryStats.map(c => c.total_amount),
+                backgroundColor: '#2ecc71',
+                yAxisID: 'amount'
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true
+                },
+                amount: {
+                    position: 'right',
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+});
+</script>
+
+<style>
+.btn-group {
+    margin-bottom: 1rem;
+}
+
+.card {
+    margin-bottom: 1rem;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.table {
+    margin-bottom: 0;
+}
+
+.table td, .table th {
+    padding: 0.5rem;
+}
+
+.text-danger {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.bg-primary {
+    background: linear-gradient(135deg, #3498db, #2980b9);
+}
+
+.bg-success {
+    background: linear-gradient(135deg, #2ecc71, #27ae60);
+}
+
+.bg-info {
+    background: linear-gradient(135deg, #3498db, #2980b9);
+}
+
+.bg-warning {
+    background: linear-gradient(135deg, #f1c40f, #f39c12);
+}
+</style>
+{% endblock %} 

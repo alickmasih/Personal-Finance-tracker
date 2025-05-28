@@ -1,0 +1,12 @@
+Flask==2.3.3
+Flask-SQLAlchemy==3.1.1
+Flask-Login==0.6.2
+Werkzeug==2.3.7
+SQLAlchemy==2.0.21
+python-dotenv==1.0.0
+bcrypt==4.0.1
+transformers==4.34.0  # Added for NLP-based categorization
+scikit-learn==1.4.1  # Added for expense forecasting
+pandas==2.2.1  # Added for data manipulation
+Flask-Mail==0.9.1  # Added for email functionality
+itsdangerous==2.1.2  # Added for token generation

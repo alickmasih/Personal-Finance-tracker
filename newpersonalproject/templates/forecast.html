@@ -1,0 +1,254 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2>Expense Forecast</h2>
+            <p class="text-muted">Predictions for next month based on your spending history</p>
+            
+            <!-- Filter Buttons -->
+            <div class="btn-group mb-3" role="group" aria-label="Forecast period">
+                <button type="button" class="btn btn-outline-primary" data-period="3">Last 3 Months</button>
+                <button type="button" class="btn btn-outline-primary" data-period="6">Last 6 Months</button>
+                <button type="button" class="btn btn-outline-primary active" data-period="12">Last Year</button>
+                <button type="button" class="btn btn-outline-primary" data-period="0">All Time</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Prediction Card -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Next Month's Total Expenses</h5>
+                    <div id="totalPrediction" class="display-4 mb-2">Loading...</div>
+                    <div class="progress mb-2" style="height: 5px;">
+                        <div id="confidenceBar" class="progress-bar" role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <small class="text-muted">Confidence Score: <span id="confidenceScore">-</span>%</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Prediction Insights</h5>
+                    <div id="predictionInsights">
+                        <p class="placeholder-glow">
+                            <span class="placeholder col-12"></span>
+                            <span class="placeholder col-12"></span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Category Predictions -->
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Category-wise Predictions</h5>
+                    <canvas id="categoryChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Predicted Breakdown</h5>
+                    <div id="categoryList" class="list-group list-group-flush">
+                        <!-- Category predictions will be inserted here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let currentChart = null;
+
+function loadForecastData(period = 12) {
+    // Show loading state
+    document.getElementById('totalPrediction').textContent = 'Loading...';
+    document.getElementById('confidenceScore').textContent = '-';
+    document.getElementById('confidenceBar').style.width = '0%';
+    document.getElementById('categoryList').innerHTML = '';
+    
+    if (currentChart) {
+        currentChart.destroy();
+    }
+    
+    // Fetch forecast data with period parameter
+    fetch(`/api/forecast?period=${period}`)
+        .then(response => response.json())
+        .then(data => {
+            updateTotalPrediction(data.total_prediction);
+            updateCategoryPredictions(data.category_predictions);
+        })
+        .catch(error => {
+            console.error('Error fetching forecast:', error);
+            showError('Failed to load predictions. Please try again later.');
+        });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Set up filter button handlers
+    const filterButtons = document.querySelectorAll('.btn-group button');
+    filterButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            // Update active state
+            filterButtons.forEach(btn => btn.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Load data for selected period
+            const period = this.getAttribute('data-period');
+            loadForecastData(period);
+        });
+    });
+    
+    // Initial load with default period (12 months)
+    loadForecastData(12);
+});
+
+function updateTotalPrediction(prediction) {
+    const totalElement = document.getElementById('totalPrediction');
+    const confidenceBar = document.getElementById('confidenceBar');
+    const confidenceScore = document.getElementById('confidenceScore');
+    const insights = document.getElementById('predictionInsights');
+    
+    if (prediction.error) {
+        totalElement.textContent = 'Insufficient Data';
+        insights.innerHTML = `<div class="alert alert-info">${prediction.error}</div>`;
+        return;
+    }
+    
+    totalElement.textContent = `$${prediction.prediction.toLocaleString()}`;
+    confidenceBar.style.width = `${prediction.confidence}%`;
+    confidenceScore.textContent = prediction.confidence;
+    
+    // Add insights
+    insights.innerHTML = `
+        <p>Based on your spending history, we predict your expenses for next month
+           will be around $${prediction.prediction.toLocaleString()}.</p>
+        <p>This prediction has a confidence score of ${prediction.confidence}%
+           based on recent prediction accuracy.</p>
+    `;
+}
+
+function updateCategoryPredictions(predictions) {
+    const categories = Object.keys(predictions);
+    const amounts = Object.values(predictions);
+    
+    // Update category list
+    const categoryList = document.getElementById('categoryList');
+    categoryList.innerHTML = categories.map((category, index) => `
+        <div class="list-group-item d-flex justify-content-between align-items-center">
+            ${category}
+            <span class="badge bg-primary rounded-pill">
+                $${amounts[index].toLocaleString()}
+            </span>
+        </div>
+    `).join('');
+    
+    // Update chart
+    const ctx = document.getElementById('categoryChart').getContext('2d');
+    if (currentChart) {
+        currentChart.destroy();
+    }
+    currentChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: categories,
+            datasets: [{
+                label: 'Predicted Amount ($)',
+                data: amounts,
+                backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: value => '$' + value.toLocaleString()
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
+    });
+}
+
+function showError(message) {
+    const totalElement = document.getElementById('totalPrediction');
+    const insights = document.getElementById('predictionInsights');
+    
+    totalElement.textContent = 'Error';
+    insights.innerHTML = `<div class="alert alert-danger">${message}</div>`;
+}
+</script>
+
+<style>
+.card {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+    margin-bottom: 1rem;
+}
+
+.display-4 {
+    font-size: 2.5rem;
+    font-weight: 300;
+}
+
+.progress {
+    background-color: #e9ecef;
+}
+
+.progress-bar {
+    background-color: #28a745;
+}
+
+.list-group-item {
+    border: none;
+    padding: 0.5rem 0;
+}
+
+.badge {
+    font-size: 0.875rem;
+}
+
+.btn-group {
+    margin-right: 1rem;
+}
+
+.btn-outline-primary {
+    border-color: #3498db;
+    color: #3498db;
+}
+
+.btn-outline-primary:hover,
+.btn-outline-primary.active {
+    background-color: #3498db;
+    border-color: #3498db;
+    color: white;
+}
+
+.btn-outline-primary:focus {
+    box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
+}
+</style>
+{% endblock %} 
